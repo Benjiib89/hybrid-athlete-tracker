@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hybrid Athlete Tracker</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:#0b0d10;color:#f3f4f6}
+.container{max-width:1050px;margin:auto;padding:28px 18px 50px}
+header{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:24px}
+h1{margin:0;font-size:clamp(28px,5vw,42px)}
+.sub{color:#9ca3af;margin-top:6px}
+.badge{background:#181c22;border:1px solid #2b3038;padding:9px 13px;border-radius:999px;color:#d1d5db}
+.grid{display:grid;grid-template-columns:1.4fr .8fr;gap:18px}
+.card{background:#12151a;border:1px solid #242932;border-radius:18px;padding:20px;box-shadow:0 8px 30px #0003}
+.today{border-color:#3b82f6}
+.label{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:#8b95a5}
+h2{margin:6px 0 4px;font-size:27px}
+h3{margin:0 0 14px}
+.exercise{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #242932}
+.exercise:last-child{border-bottom:0}
+.exercise input{width:21px;height:21px;accent-color:#3b82f6}
+.exercise.done span{text-decoration:line-through;color:#6b7280}
+.sets{margin-left:auto;color:#9ca3af;font-size:14px;white-space:nowrap}
+.progress{height:10px;background:#242932;border-radius:10px;overflow:hidden;margin:12px 0}
+.bar{height:100%;background:#3b82f6;width:0%;transition:.25s}
+.stat{display:flex;justify-content:space-between;margin:10px 0;color:#cbd5e1}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.day{background:#181c22;border:1px solid #292f38;border-radius:12px;padding:11px 5px;text-align:center}
+.day strong{display:block;font-size:13px}
+.day small{display:block;color:#9ca3af;margin:5px 0}
+.day.done{border-color:#3b82f6;background:#142238}
+.day.today{outline:2px solid #60a5fa}
+button{border:0;border-radius:11px;padding:11px 14px;background:#242a33;color:white;cursor:pointer;font-weight:600}
+button:hover{background:#303744}
+.note{color:#9ca3af;font-size:14px;line-height:1.5}
+@media(max-width:750px){.grid{grid-template-columns:1fr}.week{gap:5px}.day{padding:9px 2px}.sets{font-size:12px}}
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+<div>
+<h1>Hybrid Athlete</h1>
+<div class="sub" id="date"></div>
+</div>
+<div class="badge">🔥 <span id="streak">0</span> dagar</div>
+</header>
+
+<div class="grid">
+<main>
+<section class="card today">
+<div class="label">Dagens pass</div>
+<h2 id="workoutTitle"></h2>
+<p class="sub" id="workoutDesc"></p>
+<div id="exercises"></div>
+<div class="progress"><div class="bar" id="progressBar"></div></div>
+<div class="stat"><span>Passet</span><strong id="progressText">0%</strong></div>
+</section>
+
+<section class="card" style="margin-top:18px">
+<h3>Veckan</h3>
+<div class="week" id="week"></div>
+</section>
+</main>
+
+<aside>
+<section class="card">
+<h3>Din vecka</h3>
+<div class="stat"><span>Genomförda pass</span><strong id="completed">0 / 6</strong></div>
+<div class="stat"><span>Veckoprogress</span><strong id="weekPercent">0%</strong></div>
+<p class="note">Kryssa i övningarna när du är klar. Allt sparas automatiskt i webbläsaren.</p>
+<button onclick="resetWeek()">Återställ denna vecka</button>
+</section>
+
+<section class="card" style="margin-top:18px">
+<h3>Regler</h3>
+<p class="note">Missar du ett pass är det lugnt. Gå bara tillbaka till planen nästa dag. Vila är en del av träningen.</p>
+</section>
+</aside>
+</div>
+</div>
+
+<script>
+const workouts = {
+1:{title:"Styrka + split",desc:"Helkroppsstyrka följt av lugn split-rörlighet.",ex:[
+["Goblet squat","3 × 8–12"],["Dumbbell row","3 × 8–12 / arm"],["Push-ups","3 × 8–15"],["Romanian deadlift","3 × 8–12"],["Shoulder press","2–3 × 8–12"],["Planka","3 × 30–60 sek"],["Split-rörlighet","10 min"]]},
+2:{title:"Lugn löpning",desc:"Bygg kondition i ett tempo där du kan prata.",ex:[
+["Löpning","5–7 km"],["Split-rörlighet","10 min"]]},
+3:{title:"Sprint + explosivitet",desc:"Kvalitet före mängd. Vila ordentligt mellan sprintarna.",ex:[
+["Uppvärmning","10–15 min"],["Acceleration","4 × 30 m"],["Sprint","4 × 60 m"],["Sprint","3 × 100 m"],["Split-rörlighet","10 min"]]},
+4:{title:"Vila",desc:"Återhämtning. Lätt promenad är okej om du vill.",ex:[
+["Vila","Återhämtning"]]},
+5:{title:"Styrka + split",desc:"Helkroppsstyrka och rörlighet.",ex:[
+["Split squat","3 × 8–12 / ben"],["Dumbbell row","3 × 10–12"],["Push-ups","3 set"],["Romanian deadlift","3 × 10"],["Shoulder press","3 × 8–12"],["Sit-ups / dead bug","3 set"],["Split-rörlighet","10 min"]]},
+6:{title:"Långpass",desc:"Lugnt och kontrollerat tempo.",ex:[
+["Löpning","8–12 km"],["Lätt stretching","5–10 min"]]},
+0:{title:"Lätt kondition + rörlighet",desc:"Låg intensitet och återhämtning.",ex:[
+["Lätt cykel / promenad","20–30 min"],["Lätt boxning (valfritt)","10–20 min"],["Mobility","10–15 min"]]}
+};
+
+const dayNames=["Sön","Mån","Tis","Ons","Tor","Fre","Lör"];
+const key=()=>new Date().toISOString().slice(0,10);
+let data=JSON.parse(localStorage.getItem("hybridTracker")||"{}");
+
+function save(){localStorage.setItem("hybridTracker",JSON.stringify(data));}
+function weekKey(d){let x=new Date(d);let day=x.getDay();x.setDate(x.getDate()-day+1);return x.toISOString().slice(0,10)}
+function exerciseKey(date,i){return date+"-"+i}
+
+function render(){
+ const now=new Date(), today=key(), dow=now.getDay(), w=workouts[dow];
+ document.getElementById("date").textContent=now.toLocaleDateString("sv-SE",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+ document.getElementById("workoutTitle").textContent=w.title;
+ document.getElementById("workoutDesc").textContent=w.desc;
+ const ex=document.getElementById("exercises"); ex.innerHTML="";
+ let done=0;
+ w.ex.forEach((e,i)=>{
+   const checked=!!data[exerciseKey(today,i)]; if(checked)done++;
+   const row=document.createElement("label"); row.className="exercise"+(checked?" done":"");
+   row.innerHTML=`<input type="checkbox" ${checked?"checked":""}><span>${e[0]}</span><span class="sets">${e[1]}</span>`;
+   row.querySelector("input").onchange=ev=>{if(ev.target.checked)data[exerciseKey(today,i)]=1;else delete data[exerciseKey(today,i)];save();render()};
+   ex.appendChild(row);
+ });
+ const pct=Math.round(done/w.ex.length*100);
+ document.getElementById("progressBar").style.width=pct+"%";
+ document.getElementById("progressText").textContent=pct+"%";
+
+ let completed=0;
+ const week=document.getElementById("week");week.innerHTML="";
+ const monday=new Date(now); monday.setDate(now.getDate()-(dow===0?6:dow-1));
+ for(let i=0;i<7;i++){
+   const d=new Date(monday);d.setDate(monday.getDate()+i);
+   const ds=d.toISOString().slice(0,10), dd=d.getDay(), ww=workouts[dd];
+   let n=ww.ex.length, c=ww.ex.filter((_,j)=>data[exerciseKey(ds,j)]).length;
+   const isDone=c===n;
+   if(isDone && dd!==4)completed++;
+   const el=document.createElement("div");el.className="day"+(isDone?" done":"")+(ds===today?" today":"");
+   el.innerHTML=`<strong>${dayNames[dd]}</strong><small>${d.getDate()}/${d.getMonth()+1}</small>${isDone?"✓":"—"}`;
+   week.appendChild(el);
+ }
+ document.getElementById("completed").textContent=completed+" / 6";
+ document.getElementById("weekPercent").textContent=Math.round(completed/6*100)+"%";
+ calculateStreak();
+ save();
+}
+function calculateStreak(){
+ let s=0,d=new Date();
+ while(true){
+   const ds=d.toISOString().slice(0,10), dow=d.getDay(), w=workouts[dow];
+   if(dow===4){d.setDate(d.getDate()-1);continue}
+   const ok=w.ex.every((_,i)=>data[exerciseKey(ds,i)]);
+   if(!ok)break;
+   s++;d.setDate(d.getDate()-1);
+ }
+ document.getElementById("streak").textContent=s;
+}
+function resetWeek(){
+ const now=new Date(),dow=now.getDay(),m=new Date(now);m.setDate(now.getDate()-(dow===0?6:dow-1));
+ for(let i=0;i<7;i++){let d=new Date(m);d.setDate(m.getDate()+i);let ds=d.toISOString().slice(0,10);workouts[d.getDay()].ex.forEach((_,j)=>delete data[exerciseKey(ds,j)])}
+ save();render();
+}
+render();
+</script>
+</body>
+</html>
